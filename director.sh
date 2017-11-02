@@ -1,21 +1,17 @@
-#/bin/bash
+#!/bin/bash
 
+# Store the current working directory as W.
 W=`pwd`
 
+# Location where the bosh deployment is
 BOSH_DEPLOYMENT="$W/workspace/bosh-deployment"
 
-error() {
-	>&2 echo $1
-}
-
-prerequisite_check() {
-	if [ ! `which git` ]; then
-		error "Script requires git."
-	fi
-}
+source utils.sh
+source cli.sh
 
 get_bosh_release() {
-	if [ ! -d  "$BOSH_DEPLOYMENT"]; then
+	if [ ! -d  "$BOSH_DEPLOYMENT" ]; then
+		prerequisite 'git'
 		mkdir -p "$BOSH_DEPLOYMENT"
 		git clone 'https://github.com/cloudfoundry/bosh-deployment' "$BOSH_DEPLOYMENT"
 	fi
@@ -23,6 +19,8 @@ get_bosh_release() {
 
 # Starts the bosh-lite director.
 start() {
+
+	get_bosh_release
 
 	if [ ! -d "$W/deployments/vbox" ]; then
 	  mkdir -p "$W/deployments/vbox"
@@ -43,11 +41,20 @@ start() {
 	-v internal_cidr=192.168.50.0/24 \
 	-v outbound_network_name=NatNetwork
 
+  echo $W > ~/.director_env
+
   #Output a login file.
   cat >$W/login <<'EOF'
-bosh2 alias-env vbox -e 192.168.50.6 --ca-cert <(bosh2 int ./deployments/vbox/creds.yml --path /director_ssl/ca)
+#!/bin/bash
+if [[ ! -e ~/.director_env ]]; then
+	echo "Couldn't find file ~/.director_env which contains the working directory"
+	exit 1
+fi
+W=`cat ~/.director_env`
+export CERTS=$W/deployments/vbox/creds.yml
+bosh2 alias-env vbox -e 192.168.50.6 --ca-cert <(bosh2 int $CERTS --path /director_ssl/ca)
 export BOSH_CLIENT=admin
-export BOSH_CLIENT_SECRET=`bosh2 int ./deployments/vbox/creds.yml --path /admin_password`
+export BOSH_CLIENT_SECRET=`bosh2 int $CERTS --path /admin_password`
 bosh2 -e vbox env
 EOF
 
@@ -59,6 +66,7 @@ EOF
 stop() {
 	W=`pwd`
 	rm $W/login 2>/dev/null
+	rm ~/.director_env 2>/dev/null
 	cd deployments/vbox
 	bosh2 delete-env "$BOSH_DEPLOYMENT/bosh.yml" \
 	  --state ./state.json \
@@ -76,12 +84,4 @@ stop() {
 }
 
 #Dispatch the invocation.
-case $1 in
-start)
-   start; ;;
-stop)
-   stop; ;;
-*)
-	 >&2 echo "$0 start|stop"
-	 exit 1; ;;
-esac
+dispatch $@
