@@ -1,0 +1,11 @@
+#!/bin/bash
+
+
+BOSH_CLI_URL=https://s3.amazonaws.com/bosh-cli-artifacts/bosh-cli-2.0.44-darwin-amd64
+if [ ! `which bosh2` ]; then
+	wget -c $BOSH_CLI_URL -O ./downloads/bosh-cli-install
+	if [ -e ./downloads/bosh-cli-install ]; then
+		chmod +x ./downloads/bosh-cli-install
+		mv ./downloads/bosh-cli-install /usr/local/bin/bosh2
+	fi
+fi
